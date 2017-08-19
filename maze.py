@@ -1,0 +1,184 @@
+# Generate a maze - Max Malacari, February 2017
+# Depth first search Algorithm
+# Recursive backtracking
+
+import pygame as pg
+import sys
+import random as rand
+from math import *
+
+# Some options to set!
+wWidth = 800 # dimensions of the drawing window - huge maze, set line with to 1
+wHeight = 800
+cols = 50 # number of cells in each dimension
+rows = 50
+# wWidth = 800
+# wHeight = 800
+# cols = 50
+# rows = 50
+watchDraw = True
+
+w = wWidth/cols
+h = wHeight/rows
+
+# Some colours
+red = (255,0,0)
+green = (0,255,0)
+blue = (0,0,255)
+white = (255,255,255)
+black = (0,0,0)
+yellow = (255,255,0)
+
+pg.init()
+screen = pg.display.set_mode((wWidth+2,wHeight+2))
+
+def main():
+
+    grid = []
+    setup(grid, cols, rows)
+
+    start = grid[0][0]
+    currentCell = start
+    stack = []
+    finished = False
+
+    while finished==False:
+
+        if watchDraw == True:
+            # Show the cells
+            screen.fill(black) # clear the screen
+            for i in range(0,cols):
+                for j in range(0,rows):
+                    grid[i][j].showCellBoundary()
+            currentCell.show(green)
+
+        currentCell.visited = True
+
+        currentCell.calcUnvisitedNeighbours(grid) # calculate unvisited neighbour list for this cell
+        if currentCell.visitedNeighbours.count(False) > 0: # if there are adjacent unvisited cells
+            # add current cell to stack
+            stack.append(currentCell)
+            # choose random cell to move to
+            nextCell = chooseRandomCell(currentCell, grid)
+            # delete walls between the current cell and the next cell
+            deleteWalls(currentCell, nextCell)
+
+            currentCell = nextCell
+        elif len(stack) > 0:
+            currentCell = stack.pop()
+
+        if len(stack) == 0:
+            finished = True
+
+        if watchDraw == True:
+            pg.display.update()
+
+    # show after generation
+    screen.fill(black)
+    outFile = open("mazeOut.dat","w")
+    for i in range(0,cols):
+        for j in range(0,rows):
+            grid[i][j].showCellBoundary()
+            grid[i][j].printCellBoundary(outFile)
+    pg.display.update()
+
+    # save completed maze as an image
+    pg.image.save(screen,"test.jpg")
+
+    # Stop from instantly closing on finish
+    while(True):
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                pg.quit(); sys.exit();
+
+# Class to hold the properties of a cell
+class Cell():
+    def __init__(self, i, j):
+        self.i = i
+        self.j = j
+        self.walls = [True, True, True, True] # top, right, bottom, left wall list
+        self.visited = False
+        self.visitedNeighbours = [False, False, False, False]
+
+        # set visited neighbours to true for cells at the edge
+        if self.j == 0:
+            self.visitedNeighbours[0] = True
+        if self.j == rows - 1:
+            self.visitedNeighbours[2] = True
+        if self.i == 0:
+            self.visitedNeighbours[3] = True
+        if self.i == cols - 1:
+            self.visitedNeighbours[1] = True
+
+    def calcUnvisitedNeighbours(self, grid): # calculate the available neighbours for the current cell
+        if self.j > 0: # top neighbour
+            if grid[self.i][self.j-1].visited == True:
+                self.visitedNeighbours[0] = True
+        if self.i < cols - 1: # right neighbour
+            if grid[self.i+1][self.j].visited == True:
+                self.visitedNeighbours[1] = True
+        if self.j < rows - 1: # bottom neighbour
+            if grid[self.i][self.j+1].visited == True:
+                self.visitedNeighbours[2] = True
+        if self.i > 0: # left neighbour
+            if grid[self.i-1][self.j].visited == True:
+                self.visitedNeighbours[3] = True
+
+    def show(self, colour): # show the pointer
+        pg.draw.circle(screen, colour, (self.i*w + w/2, self.j*h + h/2), 5, 0)
+
+    def showCellBoundary(self): # Draw the cell walls
+        if self.walls[0] == True: # top
+            pg.draw.lines(screen, white, False, ((self.i*w,self.j*h),((self.i+1)*w,self.j*h)), 1)
+        if self.walls[1] == True: # right
+            pg.draw.lines(screen, white, False, (((self.i+1)*w,self.j*h),((self.i+1)*w,(self.j+1)*h)), 1)
+        if self.walls[2] == True: # bottom
+            pg.draw.lines(screen, white, False, ((self.i*w,(self.j+1)*h),((self.i+1)*w,(self.j+1)*h)), 1)
+        if self.walls[3] == True: # left
+            pg.draw.lines(screen, white, False, ((self.i*w,self.j*h),(self.i*w,(self.j+1)*h)), 1)
+
+    def printCellBoundary(self, outFile): # output the cell boundaries to a format readable to the A* solver
+        outStr = str(self.i) + " " + str(self.j) + " " + str(self.walls[0]) + " " + str(self.walls[1]) + " " + str(self.walls[2]) + " " + str(self.walls[3]) + "\n"
+        outFile.write(outStr)
+        print self.i, self.j, self.walls
+
+
+# Set up the grid of cell objects
+def setup(grid, cols, rows):
+    for i in range(0,cols):
+        grid.append([])
+        for j in range(0,rows):
+            grid[i].append(Cell(i,j))
+
+def chooseRandomCell(currentCell, grid):
+    # first count the number of unvisited neighbours
+    nUnvisited = currentCell.visitedNeighbours.count(False)
+    # choose random neighbour to visit
+    p = floor( rand.uniform(0,nUnvisited) )
+    cellIndex = [i for i, n in enumerate(currentCell.visitedNeighbours) if n == False][int(p)]
+    cell = 0
+    if cellIndex == 0: # top
+        cell = grid[currentCell.i][currentCell.j-1]
+    if cellIndex == 1: # right
+        cell = grid[currentCell.i+1][currentCell.j]
+    if cellIndex == 2: # bottom
+        cell = grid[currentCell.i][currentCell.j+1]
+    if cellIndex == 3: # left
+        cell = grid[currentCell.i-1][currentCell.j]
+    return cell
+
+def deleteWalls(currentCell, nextCell):
+    if currentCell.i == nextCell.i and currentCell.j == nextCell.j+1: # top of current cell and bottom of next cell
+        currentCell.walls[0] = False
+        nextCell.walls[2] = False
+    if currentCell.i == nextCell.i-1 and currentCell.j == nextCell.j: # right of current cell and left of next cell
+        currentCell.walls[1] = False
+        nextCell.walls[3] = False
+    if currentCell.i == nextCell.i and currentCell.j == nextCell.j-1: # bottom of current cell and top of next cell
+        currentCell.walls[2] = False
+        nextCell.walls[0] = False
+    if currentCell.i == nextCell.i+1 and currentCell.j == nextCell.j: # left of current cell and right of next cell
+        currentCell.walls[3] = False
+        nextCell.walls[1] = False
+
+main()
